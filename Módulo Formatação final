@@ -1,1 +1,256 @@
+'#1
+Sub ADesprotegerTodasAsPlanilhas()
+    Dim ws As Worksheet
+    Dim senha As String
 
+    senha = "minhaSenha123" ' Substitua por sua senha real
+
+    For Each ws In ActiveWorkbook.Worksheets
+        On Error Resume Next
+        ws.Unprotect Password:=senha
+        On Error GoTo 0
+    Next ws
+End Sub
+
+'#2
+Sub BVerificarEColorirGuiaTodasPlanilhas()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim foundCell As Range
+    Dim lastRow As Long
+    Dim isEmpty As Boolean
+    
+    ' Percorre todas as planilhas da pasta de trabalho
+    For Each ws In ActiveWorkbook.Worksheets
+        ' Procura pelo texto "Item Code"
+        Set foundCell = ws.Cells.Find(What:="Item Code", LookIn:=xlValues, LookAt:=xlWhole)
+        
+        ' Verifica se o texto foi encontrado
+        If Not foundCell Is Nothing Then
+            ' Define a última linha da coluna abaixo do texto encontrado
+            lastRow = ws.Cells(ws.Rows.Count, foundCell.Column).End(xlUp).Row
+            
+            ' Verifica se as células da linha 3 para baixo são vazias
+            isEmpty = False
+            For Each cell In ws.Range(ws.Cells(3, foundCell.Column), ws.Cells(lastRow, foundCell.Column))
+                If cell.Value = "" Then
+                    isEmpty = True
+                    Exit For
+                End If
+            Next cell
+            
+            ' Se houver células vazias, muda a cor da guia para vermelho
+            If isEmpty Then
+                ws.Tab.Color = RGB(255, 0, 0)
+            End If
+        Else
+            MsgBox "Texto 'Item Code' não encontrado na planilha " & ws.Name
+        End If
+    Next ws
+End Sub
+
+'#3
+Sub CExcluirPlanilhasGuiaVermelha()
+    Dim ws As Worksheet
+    Dim planilhasParaExcluir As Collection
+    Set planilhasParaExcluir = New Collection
+    
+    ' Percorre todas as planilhas da pasta de trabalho
+    For Each ws In ActiveWorkbook.Worksheets
+        ' Verifica se a cor da guia é vermelha
+        If ws.Tab.Color = RGB(255, 0, 0) Then
+            ' Adiciona a planilha à coleção de planilhas para excluir
+            planilhasParaExcluir.Add ws
+        End If
+    Next ws
+    
+    ' Verifica se há planilhas para excluir
+    If planilhasParaExcluir.Count > 0 Then
+        ' Desativa os alertas para evitar mensagens de confirmação
+        Application.DisplayAlerts = False
+        
+        ' Exclui cada planilha na coleção
+        For Each ws In planilhasParaExcluir
+            ws.Delete
+        Next ws
+    End If
+End Sub
+
+'#4
+Sub DRemoverComentariosENotas()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim wb As Workbook
+
+    ' Definir a pasta de trabalho atual
+    Set wb = ActiveWorkbook
+
+    ' Percorrer todas as planilhas na pasta de trabalho
+    For Each ws In wb.Sheets
+        ' Remover comentários e notas
+        For Each cell In ws.UsedRange
+            ' Remove comentários
+            If Not cell.Comment Is Nothing Then
+                cell.Comment.Delete
+            End If
+
+            ' Remove notas (Excel 365 e versões mais recentes)
+            On Error Resume Next
+            cell.ClearComments
+            On Error GoTo 0
+        Next cell
+    Next ws
+End Sub
+
+'#5
+Sub EPintarCelulasEColunasEmTodasPlanilhas()
+    Dim ws As Worksheet
+    Dim textos As Variant
+    Dim verde As Long
+    Dim rng As Range
+    Dim cell As Range
+    Dim col As Variant
+    Dim lastRow As Long
+    Dim colMarcadas As Collection
+    Dim i As Integer
+
+    textos = Array("Sizes", "Short Description", "Long Description (Size)", "Item Code")
+    verde = RGB(0, 255, 0)
+
+    For Each ws In ActiveWorkbook.Sheets
+        Set colMarcadas = New Collection
+
+        Set rng = ws.UsedRange
+        For Each cell In rng
+            For i = LBound(textos) To UBound(textos)
+                If UCase(Trim(cell.Value)) = UCase(Trim(textos(i))) Then
+                    cell.Interior.Color = verde
+                    On Error Resume Next
+                    colMarcadas.Add cell.Column, CStr(cell.Column)
+                    On Error GoTo 0
+                End If
+            Next i
+        Next cell
+
+        For Each col In colMarcadas
+            lastRow = ws.Cells(ws.Rows.Count, col).End(xlUp).Row
+            ws.Range(ws.Cells(1, col), ws.Cells(lastRow, col)).Interior.Color = verde
+        Next col
+    Next ws
+End Sub
+
+'#6
+Sub FDeletarColunasNaoVerdesEAjustarEExcluirImagens()
+    Dim ws As Worksheet
+    Dim col As Range
+    Dim cell As Range
+    Dim verde As Long
+    Dim wb As Workbook
+    Dim colToDelete As Range
+    Dim shp As Shape
+    
+    ' Definir a pasta de trabalho atual
+    Set wb = ActiveWorkbook
+    
+    ' Definir a cor verde (RGB)
+    verde = RGB(0, 255, 0)
+    
+    ' Percorrer todas as planilhas na pasta de trabalho
+    For Each ws In wb.Sheets
+        ' Inicializar a variável para armazenar as colunas a serem deletadas
+        Set colToDelete = Nothing
+        
+        ' Percorrer todas as colunas usadas na planilha
+        For Each col In ws.UsedRange.Columns
+            ' Verificar se a coluna contém dados e não está pintada de verde
+            If col.Cells(1, 1).Interior.Color <> verde Then
+                ' Adicionar a coluna à variável colToDelete
+                If colToDelete Is Nothing Then
+                    Set colToDelete = col
+                Else
+                    Set colToDelete = Union(colToDelete, col)
+                End If
+            End If
+        Next col
+        
+        ' Deletar as colunas que não estão pintadas de verde
+        If Not colToDelete Is Nothing Then
+            colToDelete.Delete
+        End If
+        
+        ' Remover o preenchimento das colunas restantes
+        For Each col In ws.UsedRange.Columns
+            col.Interior.ColorIndex = xlNone
+        Next col
+        
+        ' Ajustar a largura das colunas para no máximo 250 pixels e quebrar o texto automaticamente
+        For Each col In ws.UsedRange.Columns
+            col.ColumnWidth = 250 / ws.StandardWidth
+            col.WrapText = True
+        Next col
+        
+        ' Excluir todas as imagens presentes na planilha
+        For Each shp In ws.Shapes
+            shp.Delete
+        Next shp
+    Next ws
+End Sub
+
+'#7
+
+Sub GFormatacaoColunasETexto()
+    Dim ws As Worksheet
+    Dim rng As Range
+    Dim cell As Range
+    Dim cinzaClaro As Long
+    Dim lastRow As Long
+    
+    ' Definir a cor cinza claro (RGB)
+    cinzaClaro = RGB(200, 200, 200)
+    
+    ' Percorrer todas as planilhas da pasta de trabalho
+    For Each ws In ActiveWorkbook.Sheets
+        ' **Centralizar texto nas colunas A, B, C e D**
+        ws.Range("A:D").HorizontalAlignment = xlCenter
+        ws.Range("A:D").VerticalAlignment = xlCenter
+        
+        ' **Encontrar a última linha preenchida com valores**
+        lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        
+        ' **Aplicar bordas apenas nas colunas A, B, C e D até a última linha preenchida**
+        If lastRow > 1 Then
+            Set rng = ws.Range("A2:D" & lastRow)
+            rng.Borders.LineStyle = xlContinuous
+        End If
+        
+        ' **Aumentar tamanho do texto das colunas A e D a partir da linha 3 para altura 14**
+        For Each cell In ws.Range("A3:A" & lastRow)
+            If cell.Value <> "" Then cell.Font.Size = 14
+        Next cell
+        
+        For Each cell In ws.Range("D3:D" & lastRow)
+            If cell.Value <> "" Then cell.Font.Size = 14
+        Next cell
+        
+        ' **Definir altura da linha 2 para 25 pixels**
+        ws.Rows(2).RowHeight = 25
+        
+        ' **Preencher células da linha 2 que contêm valores na cor cinza claro**
+        For Each cell In ws.Range("A2:D2")
+            If cell.Value <> "" Then cell.Interior.Color = cinzaClaro
+        Next cell
+    Next ws
+End Sub
+
+'#000 Código de execução de todas as 7 macros
+Sub ExecutarTodasAsMacrosDeFormatacao()
+    
+    Call ADesprotegerTodasAsPlanilhas
+    Call BVerificarEColorirGuiaTodasPlanilhas
+    Call CExcluirPlanilhasGuiaVermelha
+    Call DRemoverComentariosENotas
+    Call EPintarCelulasEColunasEmTodasPlanilhas
+    Call FDeletarColunasNaoVerdesEAjustarEExcluirImagens
+    Call GFormatacaoColunasETexto
+    
+End Sub
